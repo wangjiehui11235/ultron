@@ -330,7 +330,7 @@ class Gentic(object):
                 if self._con_time > 5:
                     break
             else:
-                self._con_time
+                self._con_time = 0
             
             
             
