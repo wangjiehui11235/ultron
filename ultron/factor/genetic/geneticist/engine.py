@@ -103,4 +103,3 @@ class Engine(object):
         raw_fitness = 0 
         while raw_fitness < self._stopping_criteria:
             raw_fitness = self.run_gentic(total_data)
-            pdb.set_trace()
