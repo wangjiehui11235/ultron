@@ -59,15 +59,15 @@ class HighFrequencyWeighted(object):
         group[group >= 1.0-top_pct] = 1.0 / len(group[group >= 1.0-top_pct])
         return group
     
-    def calc_stats(self, returns_df):
+    def calc_stats(self, returns_df, horizon):
         # 总体指标
         returns_se, turnover_se = returns_df['returns'], returns_df['turnover']
         returns_se = returns_se - turnover_se * 0.001
         
         ir = returns_se.mean() / returns_se.std()
-        sharpe = np.sqrt(252) * ir
+        sharpe = np.sqrt(252 / horizon) * ir
         turnover = turnover_se.mean()
-        returns = returns_se.sum() * 252 / len(returns_se)
+        returns = returns_se.sum() * 252 / horizon / len(returns_se)
         fitness = sharpe * np.sqrt(abs(returns) / turnover)
         margin = returns_se.sum() / turnover_se.sum()
         stats_se = pd.Series({'status':1, 'ir': ir, 'sharpe': sharpe, 'turnover': turnover, 
@@ -89,8 +89,8 @@ class HighFrequencyWeighted(object):
         return res_dict
     
     
-    def stats_information(self, price_res_dict):
-        stats_df = pd.DataFrame({x: self.calc_stats(price_res_dict[x]) for x in price_res_dict.keys()}).T
+    def stats_information(self, price_res_dict, horizon):
+        stats_df = pd.DataFrame({x: self.calc_stats(price_res_dict[x], horizon) for x in price_res_dict.keys()}).T
         stats_df.index.name = 'top_bot'
         #stats_df = stats_df.reset_index()
         return stats_df
@@ -139,7 +139,7 @@ class HighFrequencyWeighted(object):
         factor_se = factor_se.groupby(level='trade_date').apply(lambda x: self.standardize(x))
         # top 20% 等权方法计算的因子收益数据
         price_res_dict = self.returns(factor_se, return_se)
-        stats_df = self.stats_information(price_res_dict)
+        stats_df = self.stats_information(price_res_dict, horizon)
         if stats_df.loc['top'].score > stats_df.loc['bottom'].score and stats_df.loc['top'].score > 0:
             return stats_df.loc['top'].to_dict()
         elif stats_df.loc['bottom'].score > stats_df.loc['top'].score and stats_df.loc['bottom'].score > 0:
