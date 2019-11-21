@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-class Weighted(object):
+class LongShortWeighted(object):
     def __init__(self):
         self._industry_styles = ['Bank','RealEstate','Health','Transportation','Mining',
                                  'NonFerMetal','HouseApp','LeiService','MachiEquip','BuildDeco',

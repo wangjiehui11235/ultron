@@ -4,10 +4,13 @@ import numpy as np
 from copy import copy
 import pdb, time, datetime
 from .... utilities.short_uuid import decode
-from . operators import crossover_sets,mutation_sets,operators_sets,calc_factor, Function
+from .... utilities.mlog import MLog
+from . operators import crossover_sets,mutation_sets,operators_sets,calc_factor, Function, FunctionType
 
 import warnings
 warnings.filterwarnings("ignore")
+
+ABS_FLOAT = 0.000001
 
 class Program(object):
     
@@ -16,8 +19,9 @@ class Program(object):
                  p_point_replace,
                  function_set,
                  operators_set,
+                 gen,
                  fitness,
-                 coverage_rate=0.5,
+                 coverage_rate=0.8,
                  n_features=0,
                  program=None,
                  parents=None):
@@ -31,28 +35,56 @@ class Program(object):
         self._n_features = n_features
         self._fitness = fitness
         self._coverage_rate = coverage_rate
+        self._gen = gen
         self._raw_fitness = None # fitness得分
         self._is_valid = True
         self._parents = parents
+        self._create_time = datetime.datetime.now()
+        self._name = 'ultron_' + str(int(time.time() * 1000000 + datetime.datetime.now().microsecond))
         if self._program is None:
             self._program = self.build_program(random_state)
         self.create_identification()
     
+    def parent_idx(self):
+        return 0 if self._parents is None else self._parents['parent_idx']
+        
+    def log(self):
+        parents = {'method':'gen'} if self._parents is None else self._parents
+        formual = self.transform()
+        identification = self._identification
+        name = self._name
+        MLog().write().info(
+            'name:%s,method:%s,gen:%d,formual:%s,fitness:%f,identification:%s'%(
+                name, str(parents['method']),self._gen,formual,self._raw_fitness,
+                identification))
+    
+    def output(self):
+        parents = {'method':'Gen'} if self._parents is None else self._parents
+        return {'name':self._name,'method':parents['method'],'gen':self._gen,
+               'formual':self.transform(),'fitness':self._raw_fitness,
+               'update_time':self._create_time}
+    
+    # 交叉变异时会出生成无效子代，需要进行优化
+    # 如 ['CurrentAssetsTRate', 'CurrentAssetsTRate', 'rskew_std']
     def create_identification(self):
-        token = ''
-        for node in self._program:
-            if isinstance(node,Function):
-                token += node.name
-            else:
-                token += node
         m = hashlib.md5()
+        try:
+            token = self.transform()
+        except Exception as e:
+            #ID为key
+            token = self._name
+        if token is None:
+            token = self._name 
         m.update(bytes(token, encoding='UTF-8'))
         self._identification = m.hexdigest()
-        
-    def _create_formual(self, apply_formual):
+      
+    def create_formual(self, apply_formual):
         function = apply_formual[0]
         formula = function.function.__name__
-        formula +='('
+        if function.ftype == FunctionType.cross_section:
+            formula +='('
+        else:
+            formula +=('(' + str(function.default_value) + ',')
         for i in range(0,function.arity):
             if i != 0:
                 formula += ','
@@ -66,7 +98,6 @@ class Program(object):
     def transform(self):
         if len(self._program) < 2:
             result = 'SecurityCurrentValueHolder(\'' + self._program[0] + '\')'
-            print(result)
             return result
         apply_stack = []
         for node in self._program:
@@ -75,12 +106,12 @@ class Program(object):
             else:
                 apply_stack[-1].append(node)
             while len(apply_stack[-1]) == apply_stack[-1][0].arity + 1:
-                result = self._create_formual(apply_stack[-1])
+                result = self.create_formual(apply_stack[-1])
                 if len(apply_stack) != 1:
                     apply_stack.pop()
                     apply_stack[-1].append(result)
                 else:
-                    return result
+                    return result 
         
     def export_graphviz(self):
         fade_nodes = None
@@ -225,24 +256,39 @@ class Program(object):
                 program[node] = factor
         return program, list(mutate)
     
-    def raw_fitness(self, total_data, factor_sets, default_value, indexs=['trade_date'], key='code'):
+    def raw_fitness(self, total_data, factor_sets, default_value, backup_cycle, 
+                    custom_params, indexs=['trade_date'], key='code'):
         #计算因子值
         try:
+            pdb.set_trace()
             expression = self.transform()
             if expression is None:
                 self._raw_fitness = default_value
                 self._is_valid = False
             else:
                 factor_data = calc_factor(expression, total_data, indexs, key)
+                #切割掉备份周期
                 factor_data = factor_data.replace([np.inf, -np.inf], np.nan)
+                #处理因子暴露度为0 
+                factor_data['transformed'] = np.where(np.abs(factor_data.transformed.values
+                                                            ) > 0.000001,factor_data.transformed.values, 
+                                                      np.nan)
+                factor_data = factor_data.loc[factor_data.index.unique()[backup_cycle:]]
                 ##检测覆盖率
                 coverage_rate  =  1 - factor_data['transformed'].isna().sum() / len(factor_data['transformed'])
-                if coverage_rate < self._coverage_rate:
-                    self._raw_fitness = default_value
-                    self._is_valid = False
-                else:
-                    raw_fitness = self._fitness(factor_data, total_data, factor_sets)
+                self._raw_fitness = default_value
+                if coverage_rate > self._coverage_rate:
+                    cycle_total_data = total_data.copy().set_index('trade_date')
+                    cycle_total_data = cycle_total_data.loc[cycle_total_data.index.unique()[backup_cycle:]]
+                    raw_fitness = self._fitness(factor_data, cycle_total_data.reset_index(), factor_sets,
+                                                custom_params, default_value)
                     self._raw_fitness = default_value if np.isnan(raw_fitness) else raw_fitness
+                    
+                if self._raw_fitness == default_value:
+                    self._is_valid = False
+
         except Exception as e:
             self._raw_fitness = default_value
             self._is_valid = False
+            print(str(e))
+            #MLog().write().error('%s'%(str(e)))
