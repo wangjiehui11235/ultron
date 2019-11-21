@@ -62,7 +62,8 @@ class HighFrequencyWeighted(object):
     def calc_stats(self, returns_df):
         # 总体指标
         returns_se, turnover_se = returns_df['returns'], returns_df['turnover']
-
+        returns_se = returns_se - turnover_se * 0.001
+        
         ir = returns_se.mean() / returns_se.std()
         sharpe = np.sqrt(252) * ir
         turnover = turnover_se.mean()
@@ -70,7 +71,8 @@ class HighFrequencyWeighted(object):
         fitness = sharpe * np.sqrt(abs(returns) / turnover)
         margin = returns_se.sum() / turnover_se.sum()
         stats_se = pd.Series({'status':1, 'ir': ir, 'sharpe': sharpe, 'turnover': turnover, 
-                              'returns': returns, 'fitness': fitness, 'margin': margin})
+                              'returns': returns, 'fitness': fitness, 'margin': margin,
+                              'score':sharpe})
         return stats_se
         
     def returns(self, factor_se, forward_returns, init_capital=100000):
@@ -101,7 +103,6 @@ class HighFrequencyWeighted(object):
         参数：
             horizon: 调仓期，按照交易日计算。
         """
-        
         factor_se = factor_data.set_index(['trade_date','code'])
         risk_se = risk_data.set_index(['trade_date','code'])
         mkt_df = mkt_df.set_index(['trade_date','code'])
@@ -120,7 +121,6 @@ class HighFrequencyWeighted(object):
         price_tb = mkt_se[keys].unstack()
         return_tb = (price_tb.shift(-horizon) / price_tb - 1.0)
         return_tb[return_tb>10.0] = np.NaN
-        #if keys in ['openPrice', 'bar30_vwap', 'bar60_vwap']:
         return_tb = return_tb.shift(-1)
         
         return_se = return_tb.stack()
@@ -140,9 +140,9 @@ class HighFrequencyWeighted(object):
         # top 20% 等权方法计算的因子收益数据
         price_res_dict = self.returns(factor_se, return_se)
         stats_df = self.stats_information(price_res_dict)
-        if stats_df.loc['top'].returns > stats_df.loc['bottom'].returns and stats_df.loc['top'].returns > 0:
+        if stats_df.loc['top'].score > stats_df.loc['bottom'].score and stats_df.loc['top'].score > 0:
             return stats_df.loc['top'].to_dict()
-        elif stats_df.loc['bottom'].returns > stats_df.loc['top'].returns and stats_df.loc['bottom'].returns > 0:
+        elif stats_df.loc['bottom'].score > stats_df.loc['top'].score and stats_df.loc['bottom'].score > 0:
             return stats_df.loc['bottom'].to_dict()
         else:
-            return {'status':0, 'fitness':default_value}
+            return {'status':0, 'score':default_value}

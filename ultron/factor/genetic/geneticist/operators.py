@@ -115,9 +115,9 @@ class Operators(object):
         
         self._cs_mutation_function_list = [Function(f, 1, FunctionType.cross_section) for f in self._cross_section_mutation_list]
         self._cs_crossover_function_list = [Function(f, 2, FunctionType.cross_section) for f in self._cross_section_crossover_list]
-        #时间序列默认为5天
         self._ts_mutation_function_list = [Function(f, 1, FunctionType.time_series, self._ts_period[np.random.randint(0, len(self._ts_period))]
                                                    ) for f in self._time_series_mutation_list]
+        
         self._ts_crossover_function_list = [Function(f, 2, FunctionType.time_series, self._ts_period[np.random.randint(0, len(self._ts_period))]
                                                     ) for f in self._time_series_crossover_list]
         

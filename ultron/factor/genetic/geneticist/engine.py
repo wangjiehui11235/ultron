@@ -95,7 +95,7 @@ class Engine(object):
         
         gentic.train(total_data=total_data)
         result = gentic._run_details
-        raw_fitness = result['best_fitness'][-1]
+        raw_fitness = 0 if len(result['best_programs']) == 0 else result['best_fitness'][-1]
         del gentic
         return raw_fitness
     

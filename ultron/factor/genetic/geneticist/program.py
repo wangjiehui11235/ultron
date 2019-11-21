@@ -260,6 +260,7 @@ class Program(object):
                     custom_params, indexs=['trade_date'], key='code'):
         #计算因子值
         try:
+            pdb.set_trace()
             expression = self.transform()
             if expression is None:
                 self._raw_fitness = default_value
@@ -275,15 +276,17 @@ class Program(object):
                 factor_data = factor_data.loc[factor_data.index.unique()[backup_cycle:]]
                 ##检测覆盖率
                 coverage_rate  =  1 - factor_data['transformed'].isna().sum() / len(factor_data['transformed'])
-                if coverage_rate < self._coverage_rate:
-                    self._raw_fitness = default_value
-                    self._is_valid = False
-                else:
+                self._raw_fitness = default_value
+                if coverage_rate > self._coverage_rate:
                     cycle_total_data = total_data.copy().set_index('trade_date')
                     cycle_total_data = cycle_total_data.loc[cycle_total_data.index.unique()[backup_cycle:]]
                     raw_fitness = self._fitness(factor_data, cycle_total_data.reset_index(), factor_sets,
-                                                custom_params)
+                                                custom_params, default_value)
                     self._raw_fitness = default_value if np.isnan(raw_fitness) else raw_fitness
+                    
+                if self._raw_fitness == default_value:
+                    self._is_valid = False
+
         except Exception as e:
             self._raw_fitness = default_value
             self._is_valid = False

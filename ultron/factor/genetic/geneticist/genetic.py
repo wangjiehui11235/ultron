@@ -252,7 +252,8 @@ class Gentic(object):
             
             #剔除无效因子
             population = [program for program in population if program._is_valid]
-            
+            if len(population) == 0:
+                break
             
             
             if self._best_programs is None:
@@ -318,8 +319,11 @@ class Gentic(object):
                 best_fitness = fitness[np.argmin(fitness)]
                 if best_fitness <= self._stopping_criteria:
                     break
-           
+
+            if np.mean(fitness) == MIN_INT or best_fitness == MIN_INT:
+                break
             self._run_details['best_fitness'].append(best_fitness)
+
             # 收敛值判断
             if self._convergence is None or gen ==0:
                 continue
